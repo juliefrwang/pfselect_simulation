@@ -12,7 +12,8 @@ library(tidyr)
 library(cowplot)
 library(ggtext)
 
-sim_path <- "seed_379_b_0.12_FDR_0.2_rep_100_true_40_hete_30_exclRare_TRUE_ctrlCorr_TRUE_standardize_FALSE_sampleSize_not_equal_Lasso_ctrlAnsMaf_FALSE_scale_pcs_varied_b"
+standardize <-FALSE
+sim_path <- "seed_379_b_0.23_FDR_0.2_rep_100_true_40_hete_30_exclRare_TRUE_ctrlCorr_TRUE_standardize_FALSE_sampleSize_not_equal_Lasso_ctrlAnsMaf_FALSE"
 simulated_true_data <- read.csv(glue("~/Project/Knockoff/simulation_res/{sim_path}/simulated_true_data.csv"))
 simulation_results <- read.csv(glue("~/Project/Knockoff/simulation_res/{sim_path}/simulation_result.csv"))
 
@@ -27,7 +28,7 @@ setwd(glue("~/Project/Knockoff/simulation_res/{sim_path}/Wstats"))
 
 # generate W and selection heatmap matrix 
 # read in files
-file_names <- sprintf("rep_%d.json", 1:100)
+file_names <- sprintf("rep_%d.json", 1:20)
 # Load all matrices
 matrices <- lapply(file_names, function(file) {
   fromJSON(file)$W_statistic_matrix # Convert JSON to matrix
@@ -65,6 +66,12 @@ write.csv(mean_selection_matrix, "mean_selection_matrix.csv", row.names = FALSE)
 ### 1. W statistics or selection matrix heatmap ###
 heatmap.plot.1 <- function(matrix_name, matrix, which.idx, ordered_indices) {
   matrix_for_plot <- matrix[,which.idx]
+  
+  # order tha idx by mu/sd
+  snp_std_mu <- apply(matrix_for_plot, 2, function(x) sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE))
+  matrix_for_plot <- matrix_for_plot[, order(snp_std_mu)]
+  # end
+  
   ordered_map <- matrix_for_plot[ordered_indices,]
   df_melt <- reshape2::melt(ordered_map)
   colnames(df_melt) <- c("Samples", "SNPs", matrix_name)
@@ -101,6 +108,12 @@ heatmap.plot.1 <- function(matrix_name, matrix, which.idx, ordered_indices) {
 
 heatmap.plot <- function(matrix_name, matrix, which.idx, ordered_indices) {
   matrix_for_plot <- matrix[,which.idx]
+  
+  # order tha idx by mu/sd
+  snp_std_mu <- apply(matrix_for_plot, 2, function(x) sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE))
+  matrix_for_plot <- matrix_for_plot[, order(snp_std_mu)]
+  # end
+  
   ordered_map <- matrix_for_plot[ordered_indices,]
   df_melt <- reshape2::melt(ordered_map)
   colnames(df_melt) <- c("Samples", "SNPs", matrix_name)
@@ -226,9 +239,9 @@ heatmap_w_maf <- function(which.idx, file.ans.tag) {
   mean.selection.allele.plot <- mean.selection.plot + allele.freq.plot + plot_layout(widths = c(3,1), guides = "collect") 
   
   combined_plot <- mean.w.allele.plot / mean.selection.allele.plot +
-    plot_annotation(tag_levels = 'a', title = glue("standardize = FALSE, excluding rare variants, FDR = 0.2\n{file.ans.tag}") )
+    plot_annotation(tag_levels = 'a', title = glue("standardize = {standardize}, excluding rare variants, FDR = 0.2\n{file.ans.tag}") )
   
-  ggsave(glue("../heatmaps_maf_{file.ans.tag}.png"), combined_plot, width = 7.5, height = 3.5, dpi = 300, units = "in")
+  ggsave(glue("../heatmaps_maf_{file.ans.tag}_2.png"), combined_plot, width = 7.5, height = 3.5, dpi = 300, units = "in")
   
 }
 heatmap_w_maf(eur_idx, "EUR")
@@ -348,7 +361,7 @@ layout <- c(
 combined_plot_2 <- mean.w.plot.1 + mean.w.plot.2 + mean.w.plot.3 +
   mean.selection.plot.1 + mean.selection.plot.2 + mean.selection.plot.3 +
   ancestry_plot.1 + ancestry_plot.2 + ancestry_plot.3  +
-  fdr_plot + plot_layout(design = layout) + plot_annotation(title = "standardize = FALSE, excluding rare variants,  FDR = 0.2", tag_levels = 'a') &  theme(plot.tag = element_text(size = 8,hjust = 5, vjust = 0))
+  fdr_plot + plot_layout(design = layout) + plot_annotation(title = glue("standardize = {standardize}, excluding rare variants,  FDR = 0.2"), tag_levels = 'a') &  theme(plot.tag = element_text(size = 8,hjust = 5, vjust = 0))
  
-ggsave("../combined_plot_test7.png", combined_plot_2, width = 8, height = 7, units = "in", dpi = 400)
+ggsave("../combined_plot_test8.png", combined_plot_2, width = 8, height = 7, units = "in", dpi = 400)
 

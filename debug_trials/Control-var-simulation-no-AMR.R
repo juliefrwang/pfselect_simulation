@@ -15,9 +15,9 @@ library(dplyr)
 
 args = commandArgs(trailingOnly=TRUE)
 
-b <- 0.1
+b <- 0.23
 seed <- 379
-num_replicate <- 100
+num_replicate <- 20
 set.seed(seed)
 FDR_rate <- 0.2
 
@@ -25,18 +25,18 @@ FDR_rate <- 0.2
 sample_size <- "not_equal" #1
 excl_rare <- TRUE #2
 ctrl_corr <- TRUE #3
-standardize <- TRUE #4
+standardize <- FALSE #4
 num_true <- 40 #5
 num_affected <- 30
 model <- "Lasso" # "Lasso" or "Grplasso" 
-ctrl_ans_maf <- FALSE
+ctrl_ans_maf <- TRUE
 # sample_size <- args[1]
 # standardize <- as.logical(args[2])
 
 
 # check existence of working simulation folder and create if not exist
 main_dir <- "/Users/juliew/Project/Knockoff"
-sub_dir <- glue("simulation_res/seed_{seed}_b_{b}_FDR_{FDR_rate}_rep_{num_replicate}_true_{num_true}_hete_{num_affected}_exclRare_{excl_rare}_ctrlCorr_{ctrl_corr}_standardize_{standardize}_sampleSize_{sample_size}_{model}_ctrlAnsMaf_{ctrl_ans_maf}_scale_pcs_varied_b")
+sub_dir <- glue("simulation_res/seed_{seed}_b_{b}_FDR_{FDR_rate}_rep_{num_replicate}_true_{num_true}_hete_{num_affected}_exclRare_{excl_rare}_ctrlCorr_{ctrl_corr}_standardize_{standardize}_sampleSize_{sample_size}_{model}_ctrlAnsMaf_{ctrl_ans_maf}_diy_eur_idx")
 
 # check if sub directory exists 
 if (file.exists(sub_dir)){
@@ -85,7 +85,7 @@ if (excl_rare) {
 # pcs and ancestry
 pcs <- sample_data[,c("PC1", "PC2", "PC3", "PC4")]
 # scale pcs
-pcs <- as.data.frame(scale(pcs))
+# pcs <- as.data.frame(scale(pcs))
 
 ancestry <- as.matrix(sample_data[,c("SAS","EAS","AMR","AFR","EUR")])
 
@@ -105,7 +105,6 @@ if (ctrl_ans_maf) {
 }
 
 
-
 # hclust snps: variables in diff clusters have  
 # absolute correlation less than corr_max.
 corr_mat <- cor(snps_to_choose)
@@ -116,18 +115,53 @@ clusters = cutree(fit, h=1-corr_max)
 cluster_rep <- match(unique(clusters),clusters) # first occurrence of each cluster in original data
 cluster_rep <- colnames(snps_to_choose)[cluster_rep]
 
+# corr_mat <- cor(snps)
+# Sigma.distance = as.dist(1 - abs(corr_mat))
+# fit = hclust(Sigma.distance, method="single")
+# corr_max <- ifelse(ctrl_corr, 0.8, 1)
+# clusters = cutree(fit, h=1-corr_max)
+# representative_snps <- numeric(length(unique(clusters)))
+# 
+# # Find representative SNP for each cluster
+# for (k in unique(clusters)) {
+#   cluster_indices <- which(clusters == k)
+#   if (length(cluster_indices) == 1) {
+#     representative_snps[k] <- cluster_indices[1]
+#   } else {
+#     # Calculate sum of absolute correlations within the cluster
+#     cluster_corr_sum <- colSums(abs(corr_mat)[cluster_indices, cluster_indices])
+#     # Find the SNP with the highest sum of correlations
+#     representative_snps[k] <- cluster_indices[which.max(cluster_corr_sum)]
+#   }
+# }
+# snps <- snps[,representative_snps]
+
+
 # beta: select beta from cluster.index
+# true_idx <- sample(c(1:dim(snps)[2]), num_true)
 true_idx <- match(sample(cluster_rep, num_true) , colnames(snps))
 hete_idx <- sample(true_idx, num_affected)
 homo_idx <- setdiff(true_idx, hete_idx)
 eur_idx <- hete_idx[1:10]
 afr_idx <- hete_idx[11:20]
+amr_idx <- hete_idx[21:30]
 
+# t1 <- eur_idx[4]
+# t2 <- eur_idx[5]
+# eur_idx[4] <- amr_idx[9]
+# eur_idx[5] <- amr_idx[8]
+# amr_idx[9] <- t1
+# amr_idx[8] <- t2
+
+# eur_idx <- hete_idx[1:(num_affected/2)]
+# afr_idx <- hete_idx[(num_affected/2+1):num_affected]
 
 # change magnitude of the coefficient here
 homo_mag <- b
 eur_mag <- b + 0.02
-afr_mag <- b + 0.1
+afr_mag <- b + 0.12
+amr_mag <- 0
+
 
 # prepare for json 
 all_idx <- list(
@@ -146,10 +180,12 @@ beta <- numeric(ncol(snps))
 beta[homo_idx] <- sample(c(-homo_mag, homo_mag), length(homo_idx), replace = TRUE)
 beta[eur_idx] <- sample(c(-eur_mag, eur_mag), length(eur_idx), replace = TRUE)
 beta[afr_idx] <- sample(c(-afr_mag, afr_mag), length(afr_idx), replace = TRUE)
+beta[amr_idx] <- sample(c(-amr_mag, amr_mag), length(amr_idx), replace = TRUE)
 
 beta_matrix <- matrix(beta, nrow = nrow(snps), ncol = ncol(snps), byrow = TRUE)
 beta_matrix[, eur_idx] <- sweep(beta_matrix[, eur_idx], 1, ancestry[,'EUR'], "*")
 beta_matrix[, afr_idx] <- sweep(beta_matrix[, afr_idx], 1, ancestry[,'AFR'], "*")
+beta_matrix[, amr_idx] <- sweep(beta_matrix[, amr_idx], 1, ancestry[,'AMR'], "*")
 write.csv(beta_matrix, file = glue("ancestry_specified_beta.csv"), row.names = FALSE)
 
 # y
